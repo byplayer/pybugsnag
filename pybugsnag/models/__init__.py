@@ -147,7 +147,7 @@ class Error(BaseModel):
         """override"""
         super(Error, self).__init__(data, **kwargs)
         for field in Error.DATE_FIELDS:
-            setattr(self, field, iso8601_to_datetime(getattr(self, field)))
+            setattr(self, field, iso8601_to_datetime(getattr(self, field), True))
 
     def __repr__(self):
         """repr"""
