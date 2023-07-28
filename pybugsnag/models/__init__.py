@@ -322,27 +322,25 @@ class Project(BaseModel):
         if filters != None:
             params.update(filters)
 
-        if ("base" not in params) and ("filters[event.since]" not in filters):
+        if "base" not in params:
             params["base"] = datetime.now()
 
         self.next_url_path = None
         query_params = dict_to_query_params(params)
         path = "projects/{}/errors{}".format(self.id, query_params)
-        print(path)
-        res = self._client.get(path, True)
-
-        m = re.search('<https://[a-z\.]*(/.*)>; rel="next"', res.headers.get('link', ''))
-        if bool(m):
-            self.next_url_path = m.group(1)
-
-        return [
-            Error(x, project=self, client=self._client) for x in res.json()
-        ]
+        return self.get_errors_with_path(path)
 
     def get_next_errors(self):
         if self.next_url_path is None:
             return []
-        res = self._client.get(self.next_url_path, True)
+
+        return self.get_errors_with_path(self.next_url_path)
+
+    def get_errors_with_path(self, path):
+        self.next_url_path = None
+
+        print(path)
+        res = self._client.get(path, True)
 
         m = re.search('<https://[a-z\.]*(/.*)>; rel="next"', res.headers.get('link', ''))
         if bool(m):
