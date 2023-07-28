@@ -322,12 +322,13 @@ class Project(BaseModel):
         if filters != None:
             params.update(filters)
 
-        if "base" not in params:
+        if ("base" not in params) and ("filters[event.since]" not in filters):
             params["base"] = datetime.now()
 
         self.next_url_path = None
         query_params = dict_to_query_params(params)
         path = "projects/{}/errors{}".format(self.id, query_params)
+        print(path)
         res = self._client.get(path, True)
 
         m = re.search('<https://[a-z\.]*(/.*)>; rel="next"', res.headers.get('link', ''))
