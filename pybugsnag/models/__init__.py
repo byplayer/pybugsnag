@@ -11,6 +11,7 @@ from pybugsnag.utils.text import (
     datetime_to_iso8601,
     iso8601_to_datetime,
 )
+import re
 
 
 class BaseModel:
@@ -310,19 +311,44 @@ class Project(BaseModel):
         sort=Error.Sort.LAST_SEEN,
         direction=Error.Sort.Direction.DESCENDING,
         per_page=30,
-        filters=None,  # TODO
+        filters=None,
         **kwargs
     ):
         """get errors for this project"""
-        params = filter_locals(locals())
+        lcls = locals()
+        lcls.pop("filters")
+        params = filter_locals(lcls)
+
+        if filters != None:
+            params.update(filters)
 
         if "base" not in params:
             params["base"] = datetime.now()
 
+        self.next_url_path = None
         query_params = dict_to_query_params(params)
         path = "projects/{}/errors{}".format(self.id, query_params)
+        res = self._client.get(path, True)
+
+        m = re.search('<https://[a-z\.]*(/.*)>; rel="next"', res.headers.get('link', ''))
+        if bool(m):
+            self.next_url_path = m.group(1)
+
         return [
-            Error(x, project=self, client=self._client) for x in self._client.get(path)
+            Error(x, project=self, client=self._client) for x in res.json()
+        ]
+
+    def get_next_errors(self):
+        if self.next_url_path is None:
+            return []
+        res = self._client.get(self.next_url_path, True)
+
+        m = re.search('<https://[a-z\.]*(/.*)>; rel="next"', res.headers.get('link', ''))
+        if bool(m):
+            self.next_url_path = m.group(1)
+
+        return [
+            Error(x, project=self, client=self._client) for x in res.json()
         ]
 
     def get_event(self, event_id):
