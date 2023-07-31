@@ -339,7 +339,6 @@ class Project(BaseModel):
     def get_errors_with_path(self, path):
         self.next_url_path = None
 
-        print(path)
         res = self._client.get(path, True)
 
         m = re.search('<https://[a-z\.]*(/.*)>; rel="next"', res.headers.get('link', ''))
