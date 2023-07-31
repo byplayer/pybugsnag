@@ -340,6 +340,7 @@ class Project(BaseModel):
         self.next_url_path = None
 
         res = self._client.get(path, True)
+        res.raise_for_status()
 
         m = re.search('<https://[a-z\.]*(/.*)>; rel="next"', res.headers.get('link', ''))
         if bool(m):
