@@ -345,6 +345,9 @@ class Project(BaseModel):
         if bool(m):
             self.next_url_path = m.group(1)
 
+        self.ratelimit_remaining = int(
+            res.headers.get("X-RateLimit-Remaining", "0"))
+
         return [
             Error(x, project=self, client=self._client) for x in res.json()
         ]
