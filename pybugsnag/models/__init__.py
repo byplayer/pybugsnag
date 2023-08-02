@@ -50,8 +50,6 @@ class Collaborator(BaseModel):
 class Event(BaseModel):
     """bugsnag event object"""
 
-    DATE_FIELDS = ["received_at"]
-
     class Sort:
         """event sort enum"""
 
@@ -66,12 +64,6 @@ class Event(BaseModel):
     def __init__(self, data, **kwargs):
         """override"""
         super(Event, self).__init__(data, **kwargs)
-        for field in Event.DATE_FIELDS:
-            setattr(
-                self,
-                field,
-                iso8601_to_datetime(getattr(self, field), milliseconds=True),
-            )
 
     def __repr__(self):
         """repr"""
@@ -111,7 +103,6 @@ class Error(BaseModel):
 
     MIN_BUCKETS = 1
     MAX_BUCKETS = 50
-    DATE_FIELDS = ["first_seen", "last_seen", "first_seen_unfiltered"]
 
     class Resolution:
         """time resolution enum"""
@@ -147,8 +138,6 @@ class Error(BaseModel):
     def __init__(self, data, **kwargs):
         """override"""
         super(Error, self).__init__(data, **kwargs)
-        for field in Error.DATE_FIELDS:
-            setattr(self, field, iso8601_to_datetime(getattr(self, field), True))
 
     def __repr__(self):
         """repr"""
@@ -367,20 +356,46 @@ class Project(BaseModel):
         sort=Event.Sort.TIMESTAMP,
         direction=Event.Sort.Direction.DESCENDING,
         per_page=30,
-        filters=None,  # TODO
+        filters=None,
         full_reports=False,
         **kwargs
     ):
         """get events for this project"""
-        params = filter_locals(locals())
+        lcls = locals()
+        lcls.pop("filters")
+        params = filter_locals(lcls)
+
+        if filters != None:
+            params.update(filters)
 
         if "base" not in params:
             params["base"] = datetime.now()
 
         query_params = dict_to_query_params(params)
         path = "projects/{}/events{}".format(self.id, query_params)
+        return self.get_events_with_path(path)
+
+    def get_next_events(self):
+        if self.next_url_path is None:
+            return []
+
+        return self.get_events_with_path(self.next_url_path)
+
+    def get_events_with_path(self, path):
+        self.next_url_path = None
+
+        res = self._client.get(path, True)
+        res.raise_for_status()
+
+        m = re.search('<https://[a-z\.]*(/.*)>; rel="next"', res.headers.get('link', ''))
+        if bool(m):
+            self.next_url_path = m.group(1)
+
+        self.ratelimit_remaining = int(
+            res.headers.get("X-RateLimit-Remaining", "-1"))
+
         return [
-            Event(x, project=self, client=self._client) for x in self._client.get(path)
+            Event(x, project=self, client=self._client) for x in res.json()
         ]
 
     def get_trend_buckets(self, buckets_count=10):
