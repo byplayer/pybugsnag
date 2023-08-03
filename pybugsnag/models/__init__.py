@@ -2,16 +2,12 @@
 models for each object in the bugsnag data access api
 """
 import json
-from datetime import datetime
-from pybugsnag.globals import LIBRARY
-from pybugsnag.utils.text import (
-    filter_locals,
-    snakeify,
-    dict_to_query_params,
-    datetime_to_iso8601,
-    iso8601_to_datetime,
-)
 import re
+from datetime import datetime
+
+from pybugsnag.globals import LIBRARY
+from pybugsnag.utils.text import (datetime_to_iso8601, dict_to_query_params,
+                                  filter_locals, iso8601_to_datetime, snakeify)
 
 
 class BaseModel:

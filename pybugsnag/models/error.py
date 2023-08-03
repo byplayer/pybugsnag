@@ -20,3 +20,6 @@ class PyBugsnagException(Exception):
 
 class RateLimited(PyBugsnagException):
     """request received a 429 - you are currently rate limited"""
+
+    def __init__(self, retry_after_sec):
+        self.retry_after_sec = retry_after_sec

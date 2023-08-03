@@ -1,11 +1,16 @@
 """
 base client model to create and use http endpoints
 """
-import requests
+import logging
+import time
 import urllib.parse
-from pybugsnag.globals import __version__, API_URL, LIBRARY, TEST_TOKEN, TEST_API_URL
-from pybugsnag.models.error import RateLimited
+
+import requests
+
+from pybugsnag.globals import (API_URL, LIBRARY, TEST_API_URL, TEST_TOKEN,
+                               __version__)
 from pybugsnag.models import Organization, Project
+from pybugsnag.models.error import RateLimited
 
 
 def test_client():
@@ -16,7 +21,7 @@ def test_client():
 class BugsnagDataClient:
     """client http wrapper"""
 
-    def __init__(self, token, api_url=API_URL, cache=True, debug=False):
+    def __init__(self, token, api_url=API_URL, cache=True, debug=False, rate_limit_retry=False):
         """creates a new client"""
         if not token:
             raise Exception("no token specified!")
@@ -25,6 +30,8 @@ class BugsnagDataClient:
         self.version = __version__
         self.cache = cache
         self.debug = debug
+        self.rate_limit_retry = rate_limit_retry
+        self.rate_limit_sleep_buffer = 10
 
         # cache
         self._organizations = None
@@ -45,13 +52,26 @@ class BugsnagDataClient:
             return
         print(*args)
 
-    def _req(self, path, method="get", **kwargs):
+    def _req(self, path, method="get", first_call=True, **kwargs):
         """requests wrapper"""
         full_path = urllib.parse.urljoin(self.api_url, path)
         self._log("[{}]: {}".format(method.upper(), full_path))
         request = requests.request(method, full_path, headers=self.headers, **kwargs)
         if request.status_code == 429:
-            raise RateLimited()
+            if first_call and self.rate_limit_retry:
+                sleep_sec = int(request.headers.get("Retry-After", "-1"))
+                if sleep_sec != -1:
+                    sleep_sec = sleep_sec + self.rate_limit_sleep_buffer
+                    logging.info(f"auto retry rate limit. sleep ({sleep_sec} seconds)")
+                    time.sleep(sleep_sec)
+                    return self._req(path, method, first_call=False, **kwargs)
+                else:
+                    raise RateLimited(-1)
+            else:
+                raise RateLimited(int(request.headers.get("Retry-After", "-1")))
+
+        self._log(f"retry-after:{request.headers.get('Retry-After', '')}")
+        self._log(f"RateLimit-Remaining:{request.headers.get('X-RateLimit-Remaining', '')}")
         return request
 
     def get(self, path, raw=False, **kwargs):
