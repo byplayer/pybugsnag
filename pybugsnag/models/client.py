@@ -32,6 +32,7 @@ class BugsnagDataClient:
         self.debug = debug
         self.rate_limit_retry = rate_limit_retry
         self.rate_limit_sleep_buffer = 10
+        self.rate_limit_retry_max = 5
 
         # cache
         self._organizations = None
@@ -52,19 +53,20 @@ class BugsnagDataClient:
             return
         print(*args)
 
-    def _req(self, path, method="get", first_call=True, **kwargs):
+    def _req(self, path, method="get", rate_limit_retry=0, **kwargs):
         """requests wrapper"""
         full_path = urllib.parse.urljoin(self.api_url, path)
         self._log("[{}]: {}".format(method.upper(), full_path))
         request = requests.request(method, full_path, headers=self.headers, **kwargs)
         if request.status_code == 429:
-            if first_call and self.rate_limit_retry:
+            if self.rate_limit_retry and rate_limit_retry <= self.rate_limit_retry_max:
                 sleep_sec = int(request.headers.get("Retry-After", "-1"))
                 if sleep_sec != -1:
                     sleep_sec = sleep_sec + self.rate_limit_sleep_buffer
-                    logging.info(f"auto retry rate limit. sleep ({sleep_sec} seconds)")
+                    logging.info(
+                        f"auto retry rate limit. retry count is {rate_limit_retry}. sleep ({sleep_sec} seconds)")
                     time.sleep(sleep_sec)
-                    return self._req(path, method, first_call=False, **kwargs)
+                    return self._req(path, method, rate_limit_retry + 1, **kwargs)
                 else:
                     raise RateLimited(-1)
             else:
